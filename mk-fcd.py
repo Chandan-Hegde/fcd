@@ -2,7 +2,7 @@
 
 
 #pyvmomi script to make disk as FCD
-#author : Chandan Hegde (chandanhegden@gmail.com, hegdec@vmware.com)
+#author : Chandan Hegde (chandanhegden@gmail.com)
 
 from __future__ import print_function
 
