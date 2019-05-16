@@ -43,7 +43,7 @@ def get_args():
     parser.add_argument('-vm', '--vmname', required=True,
                         help='Name of the VirtualMachine you want to change.')
     parser.add_argument('-d', '--disk-number', required=True,
-                        help='Disk number to change mode.')
+                        help='Disk number to promote to FCD. Can be comma separated values like -d 1,2,3')
 
     args = parser.parse_args()
 
@@ -146,8 +146,13 @@ def main():
     try:
         if vm_obj:
             print("###DC names is %s" % args.datacenter)
-            fcd_task = mkfcd(args.host, si, args.datacenter, content, vm_obj, args.disk_number)
-            print(colored("##The Hard Disk %s is promoted to FCD","green") % (args.disk_number))
+
+            disk_numbers = args.disk_number.split(',')
+
+            for n in disk_numbers:
+                fcd_task = mkfcd(args.host, si, args.datacenter, content, vm_obj, n)
+                print(colored("##The Hard Disk %s is promoted to FCD", "green") % n)
+
     except Exception as e:
         print(colored("##Exception in making disk as FCD %s", "red") % e)
 
