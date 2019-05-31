@@ -1,8 +1,13 @@
 #!/usr/bin/env python
 
-
+#################################################################################################################################
+#
+#
 #pyvmomi script to make disk as FCD
 #author : Chandan Hegde (chandanhegden@gmail.com)
+#
+#
+#################################################################################################################################
 
 from __future__ import print_function
 
@@ -42,7 +47,8 @@ def get_args():
 
     parser.add_argument('-vm', '--vmname', required=True,
                         help='Name of the VirtualMachine you want to change.')
-    parser.add_argument('-d', '--disk-number', required=True,
+
+    parser.add_argument('-d', '--diskNumber', required=True,
                         help='Disk number to promote to FCD. Can be comma separated values like -d 1,2,3')
 
     args = parser.parse_args()
@@ -67,12 +73,12 @@ def get_obj(content, vim_type, name):
 
 
 def build_paramters(si, ds, vm, vmdk_file, vc_name, dc_name):
-    print("###DC name in build_parameter fun is %s " % dc_name)
+    # print("###DC name in build_parameter fun is %s " % dc_name)
 
     l = vmdk_file.split("/")
 
     path_parameter = "https://" + vc_name + "/folder/" + vm + "/" + l[len(l) - 1] + "?dcPath=" + dc_name + "&dsName=" + ds
-    print("###Path Parameter : %s" % path_parameter)
+    # print("###Path Parameter : %s" % path_parameter)
 
     return path_parameter
 
@@ -90,7 +96,9 @@ def mkfcd(vc_name, si, dc_name, content, vm_obj, disk_number, disk_prefix_label=
 
     # if virtual disk is not found
     if not virtual_disk_device:
-        raise RuntimeError("##Virtual {} could not be found".format(disk_label))
+        print("##Virtual {} could not be found".format(disk_label))
+        return False
+        # raise RuntimeError("##Virtual {} could not be found".format(disk_label))
 
     # checkigng the disk details
     if hasattr(virtual_disk_device.backing, 'fileName'):
@@ -107,16 +115,16 @@ def mkfcd(vc_name, si, dc_name, content, vm_obj, disk_number, disk_prefix_label=
 
         path_to_disk += virtual_disk_device.backing.fileName
 
-        print("###DC name in mkfcd fun is %s " % dc_name)
+        # print("###DC name in mkfcd fun is %s " % dc_name)
         parameter_for_fcd_disk = build_paramters(si, datastore.name, vm_obj.name, virtual_disk_device.backing.fileName, vc_name, dc_name)
-        print("###Parameter to fcd disk %s" % parameter_for_fcd_disk)
+        # print("###Parameter to fcd disk %s" % parameter_for_fcd_disk)
 
         #Registewring the disk as first class
         vstorage = content.vStorageObjectManager.RegisterDisk(parameter_for_fcd_disk)
 
         print("##The id is %s" % (vstorage.config.id.id))
 
-        print("##The data store MOID is %s" % vstorage.config.backing.datastore)
+        # print("##The data store MOID is %s" % vstorage.config.backing.datastore)
 
         #keeping last annotation as a buffer
         previous_annotation = vm_obj.summary.config.annotation
@@ -124,7 +132,7 @@ def mkfcd(vc_name, si, dc_name, content, vm_obj, disk_number, disk_prefix_label=
         #setting annotation
         spec = vim.vm.ConfigSpec()
         spec.annotation = previous_annotation + "Disk"+str(disk_number) + ":" + str(vstorage.config.id.id) + "\n"
-        task=vm_obj.ReconfigVM_Task(spec)
+        task = vm_obj.ReconfigVM_Task(spec)
         tasks.wait_for_tasks(si, [task])
         print("##Added the id annotation to VM")
 
@@ -140,21 +148,26 @@ def main():
     atexit.register(Disconnect, si)
 
     content = si.RetrieveContent()
-    print("##Searching for VM %s" %args.vmname)
-    vm_obj = get_obj(content, [vim.VirtualMachine], args.vmname)
+    print("###Searching for VM %s" % args.vmname)
+    vm_obj = get_obj(content, [vim.VirtualMachine], (args.vmname))
 
-    try:
-        if vm_obj:
-            print("###DC names is %s" % args.datacenter)
+    if vm_obj:
+        print("###Found VM %s\n" % args.vmname)
+        disk_numbers = args.diskNumber.split(',')
 
-            disk_numbers = args.disk_number.split(',')
-
-            for n in disk_numbers:
+        for n in disk_numbers:
+            try:
+                print("###Attempting to promote vDisk %s into FCD" % n)
                 fcd_task = mkfcd(args.host, si, args.datacenter, content, vm_obj, n)
-                print(colored("##The Hard Disk %s is promoted to FCD", "green") % n)
-
-    except Exception as e:
-        print(colored("##Exception in making disk as FCD %s", "red") % e)
+                if fcd_task is True:
+                    print(colored("###The Hard Disk %s is promoted to FCD", "green") % n)
+                else:
+                    print(colored("###vDisk %s is not promoted to FCD", "red") % n)
+            except Exception as e:
+                print(colored("###Exception in making disk as FCD %s ", "red") % e.msg)
+            print()
+    else:
+        print("###VM {} is not found".format(args.vmname))
 
 
 if __name__ == "__main__":
